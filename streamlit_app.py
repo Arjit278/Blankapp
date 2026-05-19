@@ -14,7 +14,7 @@ st.set_page_config(
 
 st.title("🚗 Pictator Pro")
 st.subheader(
-    "AI Fixed Tombstone Seat Generator + Editor"
+    "AI Fixed Integrated Headrest Seat Generator + Editor"
 )
 
 # ====================================================
@@ -211,23 +211,27 @@ Color:
 
 Requirements:
 
-Integrated headrests
+Integrated headrest seats with a distinct one-piece design
 
-premium seat cover design
+The headrest and backrest must form a single, unbroken unit
 
-diamond stitching
+Non-adjustable high-back structure seat style
 
-real leather texture
+Premium seat cover design
 
-front view
+Diamond stitching
 
-white studio background
+Real leather texture
 
-product photography
+Front view
 
-high realism
+White studio background
 
-Maruti Wagon R style seat shape
+Product photography
+
+High realism
+
+Maruti Wagon R style high-back bucket seat shape
 """
 
 # ====================================================
@@ -238,6 +242,8 @@ edit_prompt = f"""
 Keep exact geometry unchanged.
 
 DO NOT redesign shape.
+
+Strictly maintain the integrated headrest architecture. The headrest and backrest must remain a single, unbroken unit.
 
 Modify only:
 
@@ -266,9 +272,9 @@ same shape
 
 same dimensions
 
-same headrest
+same integrated non-adjustable headrest
 
-same proportions
+same high-back proportions
 
 same structure
 """
@@ -278,6 +284,11 @@ same structure
 # ====================================================
 
 negative_prompt = """
+separate headrest,
+adjustable headrest,
+removable headrest,
+metal headrest prongs,
+gaps between seat and headrest,
 blurry,
 low quality,
 cropped,
