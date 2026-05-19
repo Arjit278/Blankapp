@@ -22,18 +22,39 @@ st.subheader(
 # ====================================================
 
 try:
-    HF_TOKEN=st.secrets["HF_TOKEN"]
+
+    HF_TOKEN = st.secrets["HF_TOKEN"]
+
+    if len(HF_TOKEN) < 20:
+        raise Exception()
 
 except:
 
-    st.error("HF_TOKEN missing")
+    st.error(
+        "HF_TOKEN missing or invalid in Streamlit secrets"
+    )
+
+    st.code(
+"""
+HF_TOKEN="hf_xxxxxxxxxxxxxxxxx"
+"""
+    )
+
     st.stop()
 
 # ====================================================
-# TEXT GENERATION MODELS
+# CLIENT
 # ====================================================
 
-TEXT_MODELS={
+client = InferenceClient(
+    api_key=HF_TOKEN
+)
+
+# ====================================================
+# TEXT MODELS
+# ====================================================
+
+TEXT_MODELS = {
 
     "FLUX Schnell":
     "black-forest-labs/FLUX.1-schnell",
@@ -52,7 +73,7 @@ TEXT_MODELS={
 # IMAGE EDIT MODELS
 # ====================================================
 
-IMAGE_EDIT_MODELS={
+IMAGE_EDIT_MODELS = {
 
     "FLUX Dev":
     "black-forest-labs/FLUX.1-dev",
@@ -65,7 +86,7 @@ IMAGE_EDIT_MODELS={
 # MODE
 # ====================================================
 
-mode=st.radio(
+mode = st.radio(
 
     "Mode",
 
@@ -79,8 +100,10 @@ mode=st.radio(
 # OPTIONS
 # ====================================================
 
-vehicle=st.selectbox(
+vehicle = st.selectbox(
+
     "Vehicle",
+
     [
         "Maruti Wagon R",
         "Grand Vitara",
@@ -90,8 +113,10 @@ vehicle=st.selectbox(
     ]
 )
 
-material=st.selectbox(
+material = st.selectbox(
+
     "Material",
+
     [
         "Leather",
         "Diamond Stitch",
@@ -100,8 +125,10 @@ material=st.selectbox(
     ]
 )
 
-color=st.selectbox(
+color = st.selectbox(
+
     "Seat Color",
+
     [
         "Black",
         "Brown",
@@ -115,31 +142,45 @@ color=st.selectbox(
 # MODEL PICKER
 # ====================================================
 
-if mode=="Modify Existing Seat":
+if mode == "Modify Existing Seat":
 
-    model=st.selectbox(
+    model = st.selectbox(
+
         "Edit Model",
-        list(IMAGE_EDIT_MODELS.keys())
+
+        list(
+            IMAGE_EDIT_MODELS.keys()
+        )
     )
 
 else:
 
-    model=st.selectbox(
+    model = st.selectbox(
+
         "Generate Model",
-        list(TEXT_MODELS.keys())
+
+        list(
+            TEXT_MODELS.keys()
+        )
     )
 
 # ====================================================
 # IMAGE UPLOAD
 # ====================================================
 
-uploaded=None
+uploaded = None
 
-if mode=="Modify Existing Seat":
+if mode == "Modify Existing Seat":
 
-    uploaded=st.file_uploader(
+    uploaded = st.file_uploader(
+
         "Upload Seat Reference",
-        type=["jpg","jpeg","png"]
+
+        type=[
+            "jpg",
+            "jpeg",
+            "png"
+        ]
     )
 
     if uploaded:
@@ -151,13 +192,13 @@ if mode=="Modify Existing Seat":
         )
 
 # ====================================================
-# GENERATION PROMPT
+# GENERATE PROMPT
 # ====================================================
 
-prompt=f"""
-Ultra realistic automotive product photo.
+prompt = f"""
+Ultra realistic automotive catalog photograph.
 
-Generate exactly TWO front seats.
+Generate EXACTLY TWO front seats.
 
 Vehicle:
 {vehicle}
@@ -168,33 +209,37 @@ Material:
 Color:
 {color}
 
-Modern premium seat covers
+Requirements:
 
 Integrated headrests
 
-Detailed stitching
+premium seat cover design
+
+diamond stitching
+
+real leather texture
 
 front view
 
-studio lighting
+white studio background
+
+product photography
 
 high realism
 
-catalog photography
-
-Wagon R style seat shape
+Maruti Wagon R style seat shape
 """
 
 # ====================================================
 # EDIT PROMPT
 # ====================================================
 
-edit_prompt=f"""
-Keep original seat geometry.
+edit_prompt = f"""
+Keep exact geometry unchanged.
 
-DO NOT redesign seat.
+DO NOT redesign shape.
 
-Change ONLY:
+Modify only:
 
 Material:
 {material}
@@ -205,33 +250,46 @@ Color:
 Vehicle:
 {vehicle}
 
-Add:
+Apply:
 
-premium stitching
-diamond pattern
-improved detailing
+diamond stitching
+
 premium leather texture
+
+red-black contrast
+
+luxury seat cover finish
 
 Preserve:
 
+same shape
+
 same dimensions
-same seat shape
-same seat structure
+
 same headrest
+
 same proportions
+
+same structure
 """
 
-negative_prompt="""
-extra seats,
-duplicate seats,
+# ====================================================
+# NEGATIVE
+# ====================================================
+
+negative_prompt = """
 blurry,
 low quality,
+cropped,
 watermark,
 text,
-cropped,
+duplicate seats,
+extra seats,
 dashboard,
 steering wheel,
-car interior redesign
+full car,
+rear seats,
+bad anatomy
 """
 
 # ====================================================
@@ -243,18 +301,15 @@ if st.button(
     use_container_width=True
 ):
 
-    with st.spinner("Generating..."):
+    with st.spinner(
+        "Generating..."
+    ):
 
         try:
 
-            client=InferenceClient(
-                provider="auto",
-                api_key=HF_TOKEN
-            )
-
-            # ==================================
-            # MODIFY IMAGE
-            # ==================================
+            # =================================
+            # IMAGE EDIT
+            # =================================
 
             if (
                 mode=="Modify Existing Seat"
@@ -262,11 +317,13 @@ if st.button(
                 uploaded
             ):
 
-                pil_image=Image.open(
+                pil_image = Image.open(
                     uploaded
-                ).convert("RGB")
+                ).convert(
+                    "RGB"
+                )
 
-                image=client.image_to_image(
+                image = client.image_to_image(
 
                     image=pil_image,
 
@@ -280,13 +337,13 @@ if st.button(
                     strength=0.18
                 )
 
-            # ==================================
-            # TEXT GENERATION
-            # ==================================
+            # =================================
+            # TEXT TO IMAGE
+            # =================================
 
             else:
 
-                image=client.text_to_image(
+                image = client.text_to_image(
 
                     prompt,
 
@@ -298,11 +355,50 @@ if st.button(
                     negative_prompt=
                     negative_prompt,
 
-                    guidance_scale=8,
+                    guidance_scale=7,
 
                     num_inference_steps=20
                 )
 
             st.image(
                 image,
-               
+                use_container_width=True
+            )
+
+            st.success(
+                "Generation complete"
+            )
+
+            with st.expander(
+                "Generation Details"
+            ):
+
+                st.write(
+                    "Mode:",
+                    mode
+                )
+
+                st.write(
+                    "Model:",
+                    model
+                )
+
+        except Exception as e:
+
+            st.error(
+                f"Generation error:\n{str(e)}"
+            )
+
+            with st.expander(
+                "Debug Info"
+            ):
+
+                st.write(
+                    "Mode:",
+                    mode
+                )
+
+                st.write(
+                    "Selected model:",
+                    model
+                )
