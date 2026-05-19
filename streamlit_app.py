@@ -27,7 +27,11 @@ try:
     HF_TOKEN = st.secrets["HF_TOKEN"]
 
 except Exception:
-    st.error("Missing API keys in Streamlit secrets")
+
+    st.error(
+        "Missing API keys in Streamlit secrets"
+    )
+
     st.stop()
 
 # ====================================================
@@ -75,34 +79,37 @@ generator = st.selectbox(
 )
 
 # ====================================================
-# SHORT PROMPT
+# PROMPT
 # ====================================================
 
 prompt = f"""
 Automotive studio catalog image.
 
-Two front Tombstone seats only.
+Generate EXACTLY TWO FRONT SEATS.
 
-Integrated fixed headrests only.
-Headrest merged with backrest.
+ONLY Tombstone seats.
+ONLY integrated fixed headrests.
 
-Vehicle:{vehicle}
-Material:{material}
-Color:{color}
+Headrest must be merged into backrest.
+
+Vehicle: {vehicle}
+Material: {material}
+Color: {color}
 
 Front view
 Identical seats
-White background
+White studio background
 
-Do not generate:
-metal rods,
-headrest poles,
-adjustable headrests,
-removable headrests,
-rear seats,
-dashboard,
-steering wheel,
-full car,
+Do NOT generate:
+
+metal rods
+headrest poles
+adjustable headrests
+removable headrests
+rear seats
+dashboard
+steering wheel
+full car
 armrests
 """
 
@@ -119,25 +126,32 @@ if st.button(
 
         try:
 
-            # ======================================
-            # GOOGLE NANO BANANA
-            # ======================================
+            # ========================================
+            # NANO BANANA
+            # ========================================
 
-            if generator == "Google Nano Banana":
+            if generator=="Google Nano Banana":
 
                 headers = {
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "Content-Type":"application/json"
+
+                    "Authorization":
+                    f"Bearer {OPENROUTER_API_KEY}",
+
+                    "Content-Type":
+                    "application/json"
+
                 }
 
                 payload = {
 
-                    "model":"google/gemini-2.5-flash-image",
+                    "model":
+                    "google/gemini-2.5-flash-image",
 
-                    # reduce credit use
-                    "max_tokens":256,
+                    "max_tokens":
+                    256,
 
-                    "temperature":0.2,
+                    "temperature":
+                    0.2,
 
                     "messages":[
                         {
@@ -147,7 +161,7 @@ if st.button(
                     ]
                 }
 
-                response = requests.post(
+                response=requests.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers=headers,
                     json=payload,
@@ -156,7 +170,10 @@ if st.button(
 
                 data=response.json()
 
-                # Handle API errors
+                with st.expander(
+                    "Raw API Response"
+                ):
+                    st.json(data)
 
                 if "error" in data:
 
@@ -166,44 +183,38 @@ if st.button(
 
                     st.stop()
 
-                with st.expander(
-                    "API Response"
-                ):
-                    st.json(data)
-
                 if "choices" not in data:
 
                     raise Exception(
-                        "No choices in response"
+                        f"Unexpected response:\n{data}"
                     )
 
-                content = (
+                message=(
                     data["choices"][0]
                     ["message"]
-                    ["content"]
                 )
 
                 image_found=False
 
-                if isinstance(content,list):
+                # ===============================
+                # images[]
+                # ===============================
 
-                    for item in content:
+                if "images" in message:
 
-                        # image URL response
+                    for img in message["images"]:
 
-                        if item.get("type")=="image_url":
+                        if "image_url" in img:
 
-                            image_url=(
-                                item["image_url"]["url"]
-                            )
+                            url=img["image_url"]
 
-                            img=requests.get(
-                                image_url
+                            img_response=requests.get(
+                                url
                             )
 
                             image=Image.open(
                                 BytesIO(
-                                    img.content
+                                    img_response.content
                                 )
                             )
 
@@ -215,50 +226,111 @@ if st.button(
                             image_found=True
                             break
 
-                        # base64 response
+                # ===============================
+                # content[]
+                # ===============================
 
-                        elif item.get(
-                            "type"
-                        )=="image":
+                if (
+                    not image_found
+                    and
+                    "content" in message
+                ):
 
-                            image_bytes=(
-                                base64.b64decode(
-                                    item["image"]
+                    content=message[
+                        "content"
+                    ]
+
+                    if isinstance(
+                        content,
+                        list
+                    ):
+
+                        for item in content:
+
+                            # URL image
+
+                            if item.get(
+                                "type"
+                            )=="image_url":
+
+                                url=(
+                                    item[
+                                        "image_url"
+                                    ]["url"]
                                 )
-                            )
 
-                            image=Image.open(
-                                BytesIO(
-                                    image_bytes
+                                img_response=(
+                                    requests.get(
+                                        url
+                                    )
                                 )
-                            )
 
-                            st.image(
-                                image,
-                                use_container_width=True
-                            )
+                                image=Image.open(
+                                    BytesIO(
+                                        img_response.content
+                                    )
+                                )
 
-                            image_found=True
-                            break
+                                st.image(
+                                    image,
+                                    use_container_width=True
+                                )
+
+                                image_found=True
+                                break
+
+                            # Base64 image
+
+                            elif item.get(
+                                "type"
+                            )=="image":
+
+                                image_bytes=(
+                                    base64.b64decode(
+                                        item[
+                                            "image"
+                                        ]
+                                    )
+                                )
+
+                                image=Image.open(
+                                    BytesIO(
+                                        image_bytes
+                                    )
+                                )
+
+                                st.image(
+                                    image,
+                                    use_container_width=True
+                                )
+
+                                image_found=True
+                                break
+
+                # ===============================
+                # TEXT ONLY
+                # ===============================
 
                 if not image_found:
 
-                    raise Exception(
-                        "No image returned"
+                    st.warning(
+                        "Model returned text instead of image"
                     )
 
-            # ======================================
+                    st.write(message)
+
+            # ========================================
             # SDXL FALLBACK
-            # ======================================
+            # ========================================
 
             else:
 
-                client = InferenceClient(
+                client=InferenceClient(
                     model="stabilityai/stable-diffusion-xl-base-1.0",
                     token=HF_TOKEN
                 )
 
-                image = client.text_to_image(
+                image=client.text_to_image(
                     prompt,
                     guidance_scale=14,
                     num_inference_steps=40
