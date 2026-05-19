@@ -213,8 +213,6 @@ Requirements:
 
 Integrated headrest seats with a distinct one-piece design
 
-Tombstone seats
-
 The headrest and backrest must form a single, unbroken unit
 
 Non-adjustable high-back structure seat style
