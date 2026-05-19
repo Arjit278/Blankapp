@@ -23,21 +23,21 @@ st.subheader(
 
 try:
 
-    HF_TOKEN=st.secrets["HF_TOKEN"]
+    HF_TOKEN = st.secrets["HF_TOKEN"]
 
-except:
+except Exception:
 
     st.error(
-        "HF_TOKEN missing"
+        "HF_TOKEN missing in Streamlit secrets"
     )
 
     st.stop()
 
 # ====================================================
-# TEXT → IMAGE MODELS
+# TEXT MODELS
 # ====================================================
 
-TEXT_MODELS={
+TEXT_MODELS = {
 
     "FLUX Schnell":
     "black-forest-labs/FLUX.1-schnell",
@@ -51,7 +51,7 @@ TEXT_MODELS={
     "Stable Diffusion 3.5":
     "stabilityai/stable-diffusion-3.5-large",
 
-    "Stable Diffusion 1.5":
+    "Runway Stable Diffusion 1.5":
     "runwayml/stable-diffusion-v1-5",
 
     "SD1.5 Alternative":
@@ -62,20 +62,23 @@ TEXT_MODELS={
 # IMAGE EDIT MODELS
 # ====================================================
 
-IMAGE_EDIT_MODELS={
+IMAGE_EDIT_MODELS = {
 
     "FLUX Dev":
     "black-forest-labs/FLUX.1-dev",
 
     "FLUX Schnell":
-    "black-forest-labs/FLUX.1-schnell"
+    "black-forest-labs/FLUX.1-schnell",
+
+    "Runway Stable Diffusion 1.5":
+    "runwayml/stable-diffusion-v1-5"
 }
 
 # ====================================================
 # MODE
 # ====================================================
 
-mode=st.radio(
+mode = st.radio(
 
     "Mode",
 
@@ -89,7 +92,7 @@ mode=st.radio(
 # OPTIONS
 # ====================================================
 
-vehicle=st.selectbox(
+vehicle = st.selectbox(
 
     "Vehicle",
 
@@ -102,7 +105,7 @@ vehicle=st.selectbox(
     ]
 )
 
-material=st.selectbox(
+material = st.selectbox(
 
     "Material",
 
@@ -114,7 +117,7 @@ material=st.selectbox(
     ]
 )
 
-color=st.selectbox(
+color = st.selectbox(
 
     "Seat Color",
 
@@ -131,9 +134,9 @@ color=st.selectbox(
 # MODEL PICKER
 # ====================================================
 
-if mode=="Modify Existing Seat":
+if mode == "Modify Existing Seat":
 
-    model=st.selectbox(
+    model = st.selectbox(
 
         "Edit Model",
 
@@ -144,7 +147,7 @@ if mode=="Modify Existing Seat":
 
 else:
 
-    model=st.selectbox(
+    model = st.selectbox(
 
         "Generate Model",
 
@@ -157,11 +160,11 @@ else:
 # IMAGE UPLOAD
 # ====================================================
 
-uploaded=None
+uploaded = None
 
 if mode=="Modify Existing Seat":
 
-    uploaded=st.file_uploader(
+    uploaded = st.file_uploader(
 
         "Upload Seat Reference",
 
@@ -176,6 +179,7 @@ if mode=="Modify Existing Seat":
 
         st.image(
             uploaded,
+            caption="Reference Image",
             width=300
         )
 
@@ -183,8 +187,8 @@ if mode=="Modify Existing Seat":
 # PROMPTS
 # ====================================================
 
-prompt=f"""
-Professional automotive catalog photo.
+prompt = f"""
+Professional automotive catalog image.
 
 Generate EXACTLY TWO FRONT SEATS.
 
@@ -192,7 +196,7 @@ ONLY Tombstone seats.
 
 ONLY integrated fixed headrests.
 
-Headrest merged into backrest.
+Headrest merged into seat body.
 
 Vehicle:{vehicle}
 
@@ -202,15 +206,17 @@ Color:{color}
 
 Front view
 
-White background
+White studio background
 
 Identical seats
 
-Premium detailing
+High realism
+
+Product photography
 """
 
-edit_prompt=f"""
-Keep exact seat geometry unchanged.
+edit_prompt = f"""
+Keep seat geometry unchanged.
 
 Modify ONLY:
 
@@ -223,22 +229,22 @@ Color:
 Vehicle:
 {vehicle}
 
-Add premium stitching.
+Improve stitching.
 
-Improve seat detailing.
+Improve detailing.
 
 Preserve:
 
 same dimensions
-same headrest
 same proportions
-same seat structure
-same geometry
+same shape
+same headrest
+same structure
 
-DO NOT redesign shape
+DO NOT redesign
 """
 
-negative_prompt="""
+negative_prompt = """
 metal rods,
 headrest poles,
 adjustable headrests,
@@ -248,10 +254,11 @@ dashboard,
 steering wheel,
 full car,
 armrests,
-cropped,
 duplicate,
+cropped,
 watermark,
-blurry
+blurry,
+low quality
 """
 
 # ====================================================
@@ -259,77 +266,101 @@ blurry
 # ====================================================
 
 if st.button(
-
     "Generate",
-
     use_container_width=True
 ):
 
     with st.spinner(
-
         "Generating..."
     ):
 
         try:
 
-            client=InferenceClient(
-
+            client = InferenceClient(
                 provider="auto",
-
                 api_key=HF_TOKEN
             )
 
-            # =================================
+            # ======================================
             # IMAGE EDIT
-            # =================================
+            # ======================================
 
             if (
-
                 mode=="Modify Existing Seat"
                 and
                 uploaded
             ):
 
-                pil_image=Image.open(
+                pil_image = Image.open(
                     uploaded
-                )
+                ).convert("RGB")
 
-                image=client.image_to_image(
+                settings = {
 
-                    image=pil_image,
-
-                    prompt=edit_prompt,
-
-                    model=
+                    "image": pil_image,
+                    "prompt": edit_prompt,
+                    "model":
                     IMAGE_EDIT_MODELS[
                         model
-                    ],
+                    ]
+                }
 
-                    strength=0.25
+                if "FLUX" in model:
+
+                    settings[
+                        "strength"
+                    ]=0.25
+
+                else:
+
+                    settings[
+                        "strength"
+                    ]=0.20
+
+                image = client.image_to_image(
+                    **settings
                 )
 
-            # =================================
-            # TEXT GENERATION
-            # =================================
+            # ======================================
+            # TEXT TO IMAGE
+            # ======================================
 
             else:
 
-                image=client.text_to_image(
+                settings={
 
+                    "prompt":
                     prompt,
 
-                    model=
+                    "model":
                     TEXT_MODELS[
                         model
-                    ],
+                    ]
+                }
 
-                    negative_prompt=
-                    negative_prompt,
+                if "FLUX" in model:
 
-                    guidance_scale=10,
+                    image = client.text_to_image(
+                        **settings
+                    )
 
-                    num_inference_steps=25
-                )
+                else:
+
+                    settings[
+                        "negative_prompt"
+                    ]=negative_prompt
+
+                    settings[
+                        "guidance_scale"
+                    ]=8
+
+                    settings[
+                        "num_inference_steps"
+                    ]=20
+
+                    image = client.text_to_image(
+                        **settings
+                    )
 
             st.image(
                 image,
@@ -337,7 +368,7 @@ if st.button(
             )
 
             st.success(
-                "Done"
+                "Generation complete"
             )
 
             with st.expander(
@@ -357,5 +388,5 @@ if st.button(
         except Exception as e:
 
             st.error(
-                f"Error:\n{str(e)}"
+                f"Generation error:\n{str(e)}"
             )
