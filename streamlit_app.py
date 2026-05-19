@@ -1,8 +1,4 @@
 import streamlit as st
-import requests
-import base64
-from io import BytesIO
-from PIL import Image
 from huggingface_hub import InferenceClient
 
 # ====================================================
@@ -16,23 +12,53 @@ st.set_page_config(
 )
 
 st.title("🚗 Pictator Pro")
-st.subheader("Fixed Tombstone Seat Generator")
+st.subheader("AI Fixed Tombstone Seat Generator")
 
 # ====================================================
-# SECRETS
+# HF TOKEN
 # ====================================================
 
 try:
-    OPENROUTER_API_KEY = st.secrets["OPENROUTER_API_KEY"]
     HF_TOKEN = st.secrets["HF_TOKEN"]
 
 except Exception:
 
-    st.error(
-        "Missing API keys in Streamlit secrets"
-    )
-
+    st.error("HF_TOKEN missing")
     st.stop()
+
+# ====================================================
+# MODELS
+# ====================================================
+
+MODELS = {
+
+    "Nedsit Seats":
+    "nedsit/seats",
+
+    "Product Photography":
+    "Muapi/product-photography:fastest",
+
+    "RealVisXL V5":
+    "SG161222/RealVisXL_V5.0",
+
+    "FLUX Dev":
+    "black-forest-labs/FLUX.1-dev",
+
+    "Canopus Interior":
+    "prithivMLmods/Canopus-Interior-Architecture-0.1",
+
+    "ControlNet Interior":
+    "Lam-Hung/controlnet_lora_interior",
+
+    "SDXL Interior":
+    "fofr/sdxl-tng-interior",
+
+    "Interior Checkpoint":
+    "imagepipeline/InteriorDesign-Checkpoint",
+
+    "ControlNet Interior Design":
+    "ellljoy/controlnet-interior-design"
+}
 
 # ====================================================
 # OPTIONS
@@ -60,7 +86,7 @@ material = st.selectbox(
 )
 
 color = st.selectbox(
-    "Color",
+    "Seat Color",
     [
         "Black",
         "Brown",
@@ -70,47 +96,77 @@ color = st.selectbox(
     ]
 )
 
-generator = st.selectbox(
-    "Generator",
-    [
-        "Google Nano Banana",
-        "SDXL Fallback"
-    ]
+model = st.selectbox(
+    "Model",
+    list(MODELS.keys())
 )
 
 # ====================================================
-# PROMPT
+# STRICT PROMPT
 # ====================================================
 
 prompt = f"""
-Automotive studio catalog image.
+Professional automotive catalog product photo.
 
 Generate EXACTLY TWO FRONT SEATS.
 
 ONLY Tombstone seats.
+
 ONLY integrated fixed headrests.
 
-Headrest must be merged into backrest.
+Headrest merged with backrest.
 
-Vehicle: {vehicle}
-Material: {material}
-Color: {color}
+Vehicle:{vehicle}
 
-Front view
-Identical seats
-White studio background
+Material:{material}
 
-Do NOT generate:
+Color:{color}
 
-metal rods
-headrest poles
-adjustable headrests
-removable headrests
-rear seats
-dashboard
-steering wheel
-full car
-armrests
+Requirements:
+
+front view
+white studio background
+identical seats
+premium automotive detailing
+full seat visible
+high realism
+product photography
+"""
+
+# ====================================================
+# NEGATIVE PROMPT
+# ====================================================
+
+negative_prompt = """
+bad hands,
+bad anatomy,
+ugly,
+deformed,
+face asymmetry,
+eyes asymmetry,
+deformed eyes,
+deformed mouth,
+open mouth,
+
+metal rods,
+headrest poles,
+adjustable headrests,
+removable headrests,
+detachable headrests,
+
+dashboard,
+seat belts,
+rear seats,
+armrests,
+steering wheel,
+full car,
+
+duplicate seats,
+cropped image,
+low quality,
+blurry,
+text,
+watermark
 """
 
 # ====================================================
@@ -122,231 +178,66 @@ if st.button(
     use_container_width=True
 ):
 
-    with st.spinner("Generating..."):
+    with st.spinner(
+        "Generating..."
+    ):
 
         try:
 
-            # ========================================
-            # NANO BANANA
-            # ========================================
+            client = InferenceClient(
+                provider="auto",
+                api_key=HF_TOKEN
+            )
 
-            if generator=="Google Nano Banana":
+            image = client.text_to_image(
 
-                headers = {
+                prompt,
 
-                    "Authorization":
-                    f"Bearer {OPENROUTER_API_KEY}",
+                model=MODELS[model],
 
-                    "Content-Type":
-                    "application/json"
+                negative_prompt=
+                negative_prompt,
 
-                }
+                guidance_scale=12,
 
-                payload = {
+                num_inference_steps=30
+            )
 
-                    "model":
-                    "google/gemini-2.5-flash-image",
-
-                    "max_tokens":
-                    256,
-
-                    "temperature":
-                    0.2,
-
-                    "messages":[
-                        {
-                            "role":"user",
-                            "content":prompt
-                        }
-                    ]
-                }
-
-                response=requests.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                    timeout=120
-                )
-
-                data=response.json()
-
-                with st.expander(
-                    "Raw API Response"
-                ):
-                    st.json(data)
-
-                if "error" in data:
-
-                    st.error(
-                        data["error"]["message"]
-                    )
-
-                    st.stop()
-
-                if "choices" not in data:
-
-                    raise Exception(
-                        f"Unexpected response:\n{data}"
-                    )
-
-                message=(
-                    data["choices"][0]
-                    ["message"]
-                )
-
-                image_found=False
-
-                # ===============================
-                # images[]
-                # ===============================
-
-                if "images" in message:
-
-                    for img in message["images"]:
-
-                        if "image_url" in img:
-
-                            url=img["image_url"]
-
-                            img_response=requests.get(
-                                url
-                            )
-
-                            image=Image.open(
-                                BytesIO(
-                                    img_response.content
-                                )
-                            )
-
-                            st.image(
-                                image,
-                                use_container_width=True
-                            )
-
-                            image_found=True
-                            break
-
-                # ===============================
-                # content[]
-                # ===============================
-
-                if (
-                    not image_found
-                    and
-                    "content" in message
-                ):
-
-                    content=message[
-                        "content"
-                    ]
-
-                    if isinstance(
-                        content,
-                        list
-                    ):
-
-                        for item in content:
-
-                            # URL image
-
-                            if item.get(
-                                "type"
-                            )=="image_url":
-
-                                url=(
-                                    item[
-                                        "image_url"
-                                    ]["url"]
-                                )
-
-                                img_response=(
-                                    requests.get(
-                                        url
-                                    )
-                                )
-
-                                image=Image.open(
-                                    BytesIO(
-                                        img_response.content
-                                    )
-                                )
-
-                                st.image(
-                                    image,
-                                    use_container_width=True
-                                )
-
-                                image_found=True
-                                break
-
-                            # Base64 image
-
-                            elif item.get(
-                                "type"
-                            )=="image":
-
-                                image_bytes=(
-                                    base64.b64decode(
-                                        item[
-                                            "image"
-                                        ]
-                                    )
-                                )
-
-                                image=Image.open(
-                                    BytesIO(
-                                        image_bytes
-                                    )
-                                )
-
-                                st.image(
-                                    image,
-                                    use_container_width=True
-                                )
-
-                                image_found=True
-                                break
-
-                # ===============================
-                # TEXT ONLY
-                # ===============================
-
-                if not image_found:
-
-                    st.warning(
-                        "Model returned text instead of image"
-                    )
-
-                    st.write(message)
-
-            # ========================================
-            # SDXL FALLBACK
-            # ========================================
-
-            else:
-
-                client=InferenceClient(
-                    model="stabilityai/stable-diffusion-xl-base-1.0",
-                    token=HF_TOKEN
-                )
-
-                image=client.text_to_image(
-                    prompt,
-                    guidance_scale=14,
-                    num_inference_steps=40
-                )
-
-                st.image(
-                    image,
-                    use_container_width=True
-                )
+            st.image(
+                image,
+                use_container_width=True
+            )
 
             st.success(
                 "Generation complete"
             )
 
+            with st.expander(
+                "Generation Info"
+            ):
+
+                st.write(
+                    "Model:",
+                    MODELS[model]
+                )
+
+                st.write(
+                    "Steps:",
+                    30
+                )
+
+                st.write(
+                    "Guidance:",
+                    12
+                )
+
         except Exception as e:
 
             st.error(
-                f"Error:\n{str(e)}"
+                f"Generation error:\n{str(e)}"
+            )
+
+            st.write(
+                "Selected model:",
+                MODELS[model]
             )
