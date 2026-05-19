@@ -1,13 +1,13 @@
 import streamlit as st
 import requests
+import base64
 from io import BytesIO
 from PIL import Image
 from huggingface_hub import InferenceClient
-import base64
 
-# =====================================================
+# ====================================================
 # PAGE
-# =====================================================
+# ====================================================
 
 st.set_page_config(
     page_title="Pictator Pro 2026",
@@ -16,18 +16,22 @@ st.set_page_config(
 )
 
 st.title("🚗 Pictator Pro")
-st.subheader("Tombstone Seat Generator")
+st.subheader("Fixed Tombstone Seat Generator")
 
-# =====================================================
+# ====================================================
 # SECRETS
-# =====================================================
+# ====================================================
 
-OPENROUTER_API_KEY = st.secrets["OPENROUTER_API_KEY"]
-HF_TOKEN = st.secrets["HF_TOKEN"]
+try:
+    OPENROUTER_API_KEY = st.secrets["OPENROUTER_API_KEY"]
+    HF_TOKEN = st.secrets["HF_TOKEN"]
+except:
+    st.error("Missing API keys in Streamlit secrets")
+    st.stop()
 
-# =====================================================
+# ====================================================
 # OPTIONS
-# =====================================================
+# ====================================================
 
 vehicle = st.selectbox(
     "Vehicle",
@@ -45,13 +49,13 @@ material = st.selectbox(
     [
         "Leather",
         "Diamond Stitch",
-        "Fabric",
-        "Premium Leather"
+        "Premium Leather",
+        "Fabric"
     ]
 )
 
 color = st.selectbox(
-    "Seat Color",
+    "Color",
     [
         "Black",
         "Brown",
@@ -61,7 +65,7 @@ color = st.selectbox(
     ]
 )
 
-model = st.selectbox(
+generator = st.selectbox(
     "Generator",
     [
         "Google Nano Banana",
@@ -69,60 +73,60 @@ model = st.selectbox(
     ]
 )
 
-# =====================================================
+# ====================================================
 # PROMPT
-# =====================================================
+# ====================================================
 
 prompt = f"""
-Professional automotive catalog image.
+Professional automotive catalog product photo.
 
 STRICT RULES:
 
-ONLY Tombstone seats
+ONLY tombstone seats
 
-Integrated fixed headrests only
+ONLY integrated fixed headrests
 
-Headrest and seat back must be
-one continuous structure
+Headrest must be merged into
+the backrest as one continuous body
 
-EXACTLY TWO seats:
+EXACTLY TWO FRONT SEATS:
 Driver + Co-driver
 
 Vehicle: {vehicle}
-
 Material: {material}
-
 Color: {color}
 
 Requirements:
 
-Front view
-Identical seats
-White studio background
-Full seat visible
-Premium detailing
+front view
+identical seats
+full seat visible
+white studio background
+premium automotive detailing
 
 
 STRICTLY FORBIDDEN:
 
 metal rods
 headrest poles
-adjustable headrests
-removable headrests
-detachable headrests
+adjustable headrest
+detachable headrest
+removable headrest
 dashboard
 seat belt
 rear seats
 armrest
-full car
+complete car
+steering wheel
+interior
 """
 
-# =====================================================
+# ====================================================
 # GENERATE
-# =====================================================
+# ====================================================
 
 if st.button(
-    "Generate",
+    "Generate Seats",
     use_container_width=True
 ):
 
@@ -130,13 +134,11 @@ if st.button(
 
         try:
 
-            # ========================================
+            # ============================================
             # GOOGLE NANO BANANA
-            # ========================================
+            # ============================================
 
-            if model=="Google Nano Banana":
-
-                url = "https://openrouter.ai/api/v1/chat/completions"
+            if generator=="Google Nano Banana":
 
                 headers = {
                     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -144,7 +146,7 @@ if st.button(
                 }
 
                 payload = {
-                    "model":"google/gemini-2.5-flash-image-preview",
+                    "model":"google/gemini-2.5-flash-image",
                     "messages":[
                         {
                             "role":"user",
@@ -154,36 +156,79 @@ if st.button(
                 }
 
                 response=requests.post(
-                    url,
+                    "https://openrouter.ai/api/v1/chat/completions",
                     headers=headers,
-                    json=payload
+                    json=payload,
+                    timeout=120
                 )
 
                 data=response.json()
 
-                image_data=(
-                    data["choices"][0]
-                    ["message"]
-                    ["images"][0]
-                    ["image_url"]
-                )
+                # Debug
+                with st.expander("API Response"):
+                    st.json(data)
 
-                img=requests.get(
-                    image_data
-                )
+                if "choices" not in data:
+                    raise Exception(
+                        f"Unexpected response:\n{data}"
+                    )
 
-                image=Image.open(
-                    BytesIO(img.content)
-                )
+                content=data["choices"][0]["message"]["content"]
 
-                st.image(
-                    image,
-                    use_container_width=True
-                )
+                image_found=False
 
-            # ========================================
+                if isinstance(content,list):
+
+                    for item in content:
+
+                        if item.get("type")=="image_url":
+
+                            image_url=(
+                                item["image_url"]["url"]
+                            )
+
+                            img=requests.get(image_url)
+
+                            image=Image.open(
+                                BytesIO(img.content)
+                            )
+
+                            st.image(
+                                image,
+                                use_container_width=True
+                            )
+
+                            image_found=True
+                            break
+
+                        elif item.get("type")=="image":
+
+                            image_data=item["image"]
+
+                            image_bytes=base64.b64decode(
+                                image_data
+                            )
+
+                            image=Image.open(
+                                BytesIO(image_bytes)
+                            )
+
+                            st.image(
+                                image,
+                                use_container_width=True
+                            )
+
+                            image_found=True
+                            break
+
+                if not image_found:
+                    raise Exception(
+                        "No image returned"
+                    )
+
+            # ============================================
             # SDXL FALLBACK
-            # ========================================
+            # ============================================
 
             else:
 
@@ -203,8 +248,10 @@ if st.button(
                     use_container_width=True
                 )
 
+            st.success("Generation complete")
+
         except Exception as e:
 
             st.error(
-                f"Error: {e}"
+                f"Error:\n{str(e)}"
             )
