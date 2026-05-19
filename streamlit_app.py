@@ -1,5 +1,6 @@
 import streamlit as st
 from huggingface_hub import InferenceClient
+from PIL import Image
 
 # ====================================================
 # PAGE
@@ -12,7 +13,7 @@ st.set_page_config(
 )
 
 st.title("🚗 Pictator Pro")
-st.subheader("AI Fixed Tombstone Seat Generator")
+st.subheader("AI Fixed Tombstone Seat Generator + Editor")
 
 # ====================================================
 # HF TOKEN
@@ -23,46 +24,48 @@ try:
 
 except Exception:
 
-    st.error("HF_TOKEN missing")
+    st.error(
+        "HF_TOKEN missing"
+    )
+
     st.stop()
 
 # ====================================================
-# MODELS
+# VERIFIED MODELS
 # ====================================================
 
 MODELS = {
 
-    "Nedsit Seats":
-    "nedsit/seats",
-
-    "Product Photography":
-    "Muapi/product-photography:fastest",
-
-    "RealVisXL V5":
-    "SG161222/RealVisXL_V5.0",
+    "FLUX Schnell":
+    "black-forest-labs/FLUX.1-schnell",
 
     "FLUX Dev":
     "black-forest-labs/FLUX.1-dev",
 
-    "Canopus Interior":
-    "prithivMLmods/Canopus-Interior-Architecture-0.1",
+    "Stable Diffusion XL":
+    "stabilityai/stable-diffusion-xl-base-1.0",
 
-    "ControlNet Interior":
-    "Lam-Hung/controlnet_lora_interior",
+    "Stable Diffusion 3.5":
+    "stabilityai/stable-diffusion-3.5-large",
 
-    "SDXL Interior":
-    "fofr/sdxl-tng-interior",
+    "Stable Diffusion 1.5":
+    "runwayml/stable-diffusion-v1-5",
 
-    "Interior Checkpoint":
-    "imagepipeline/InteriorDesign-Checkpoint",
-
-    "ControlNet Interior Design":
-    "ellljoy/controlnet-interior-design"
+    "SD 1.5 Alternative":
+    "stable-diffusion-v1-5/stable-diffusion-v1-5"
 }
 
 # ====================================================
 # OPTIONS
 # ====================================================
+
+mode = st.radio(
+    "Mode",
+    [
+        "Generate New Seat",
+        "Modify Existing Seat"
+    ]
+)
 
 vehicle = st.selectbox(
     "Vehicle",
@@ -102,11 +105,36 @@ model = st.selectbox(
 )
 
 # ====================================================
-# STRICT PROMPT
+# IMAGE UPLOAD
+# ====================================================
+
+uploaded = None
+
+if mode=="Modify Existing Seat":
+
+    uploaded = st.file_uploader(
+        "Upload Seat Reference",
+        type=[
+            "jpg",
+            "jpeg",
+            "png"
+        ]
+    )
+
+    if uploaded:
+
+        st.image(
+            uploaded,
+            caption="Reference Image",
+            width=300
+        )
+
+# ====================================================
+# PROMPTS
 # ====================================================
 
 prompt = f"""
-Professional automotive catalog product photo.
+Professional automotive catalog image.
 
 Generate EXACTLY TWO FRONT SEATS.
 
@@ -122,50 +150,54 @@ Material:{material}
 
 Color:{color}
 
-Requirements:
+Front view
 
-front view
-white studio background
-identical seats
-premium automotive detailing
-full seat visible
-high realism
-product photography
+White background
+
+Premium product photography
 """
 
-# ====================================================
-# NEGATIVE PROMPT
-# ====================================================
+edit_prompt = f"""
+Keep seat geometry unchanged.
 
-negative_prompt = """
-bad hands,
-bad anatomy,
-ugly,
-deformed,
-face asymmetry,
-eyes asymmetry,
-deformed eyes,
-deformed mouth,
-open mouth,
+Modify ONLY:
 
+Material:
+{material}
+
+Color:
+{color}
+
+Vehicle:
+{vehicle}
+
+Change stitching pattern.
+
+Improve detailing.
+
+Preserve:
+
+same shape
+same dimensions
+same headrest
+same proportions
+same seat structure
+
+DO NOT change geometry
+"""
+
+negative_prompt="""
 metal rods,
 headrest poles,
-adjustable headrests,
 removable headrests,
-detachable headrests,
-
-dashboard,
-seat belts,
+adjustable headrests,
 rear seats,
-armrests,
+dashboard,
 steering wheel,
 full car,
-
-duplicate seats,
-cropped image,
-low quality,
+armrests,
+duplicate,
 blurry,
-text,
 watermark
 """
 
@@ -174,7 +206,7 @@ watermark
 # ====================================================
 
 if st.button(
-    "Generate Seats",
+    "Generate",
     use_container_width=True
 ):
 
@@ -184,24 +216,51 @@ if st.button(
 
         try:
 
-            client = InferenceClient(
+            client=InferenceClient(
                 provider="auto",
                 api_key=HF_TOKEN
             )
 
-            image = client.text_to_image(
+            # ====================================
+            # IMAGE EDIT MODE
+            # ====================================
 
-                prompt,
+            if (
+                mode=="Modify Existing Seat"
+                and
+                uploaded
+            ):
 
-                model=MODELS[model],
+                image = client.image_to_image(
 
-                negative_prompt=
-                negative_prompt,
+                    image=uploaded,
 
-                guidance_scale=12,
+                    prompt=edit_prompt,
 
-                num_inference_steps=30
-            )
+                    model=MODELS[model],
+
+                    strength=0.25
+                )
+
+            # ====================================
+            # TEXT TO IMAGE MODE
+            # ====================================
+
+            else:
+
+                image = client.text_to_image(
+
+                    prompt,
+
+                    model=MODELS[model],
+
+                    negative_prompt=
+                    negative_prompt,
+
+                    guidance_scale=10,
+
+                    num_inference_steps=25
+                )
 
             st.image(
                 image,
@@ -209,35 +268,16 @@ if st.button(
             )
 
             st.success(
-                "Generation complete"
+                "Done"
             )
-
-            with st.expander(
-                "Generation Info"
-            ):
-
-                st.write(
-                    "Model:",
-                    MODELS[model]
-                )
-
-                st.write(
-                    "Steps:",
-                    30
-                )
-
-                st.write(
-                    "Guidance:",
-                    12
-                )
 
         except Exception as e:
 
             st.error(
-                f"Generation error:\n{str(e)}"
+                f"Error:\n{str(e)}"
             )
 
             st.write(
-                "Selected model:",
+                "Model:",
                 MODELS[model]
             )
