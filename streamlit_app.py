@@ -38,29 +38,49 @@ generate = st.button("Generate")
 if generate:
 
     prompt = f"""
-    Generate a clean studio product photo.
-
-    ONLY Tombstone car seats.
-    ONLY fixed headrests.
-    Headrests must be integrated into seat body.
-    No removable headrests.
-    No detachable headrests.
-    No rear seats.
-    No dashboard.
-    No steering wheel.
-    No complete car.
-    No collage.
-    No extra objects.
-
+    Generate a professional automotive studio product image.
+    
+    ONLY Tombstone seats.
+    ONLY integrated fixed headrest seats.
+    
+    Headrest MUST be permanently merged into the seat body.
+    Headrest and backrest are one continuous structure.
+    
+    STRICTLY FORBIDDEN:
+    - removable headrests
+    - detachable headrests
+    - metal support rods
+    - headrest posts
+    - adjustable headrests
+    - separate headrest cushion
+    - rear seats
+    - dashboard
+    - steering wheel
+    - complete car
+    - seat belts
+    - center console
+    - armrest
+    - extra objects
+    - collage
+    
     Vehicle: {vehicle}
     Material: {material}
-
-    Show exactly TWO front tombstone seats:
-    driver seat and co-driver seat side-by-side.
-    Both seats identical.
-    Full seat visible from top to bottom.
-    White studio background.
-    Professional automotive catalog style.
+    
+    Show EXACTLY two front seats:
+    driver and co-driver.
+    
+    Seats must:
+    - be identical
+    - full height visible
+    - upright
+    - integrated tombstone shape
+    - fixed one-piece design
+    - white studio background
+    - catalog product photography
+    
+    Negative prompt:
+    detachable headrest, headrest rods, adjustable headrest,
+metal poles, separate cushion, removable top
     """
 
     with st.spinner("Generating..."):
