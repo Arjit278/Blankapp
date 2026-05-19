@@ -13,16 +13,19 @@ st.set_page_config(
 )
 
 st.title("🚗 Pictator Pro")
-st.subheader("AI Fixed Tombstone Seat Generator + Editor")
+st.subheader(
+    "AI Fixed Tombstone Seat Generator + Editor"
+)
 
 # ====================================================
-# HF TOKEN
+# TOKEN
 # ====================================================
 
 try:
-    HF_TOKEN = st.secrets["HF_TOKEN"]
 
-except Exception:
+    HF_TOKEN=st.secrets["HF_TOKEN"]
+
+except:
 
     st.error(
         "HF_TOKEN missing"
@@ -31,10 +34,10 @@ except Exception:
     st.stop()
 
 # ====================================================
-# VERIFIED MODELS
+# TEXT → IMAGE MODELS
 # ====================================================
 
-MODELS = {
+TEXT_MODELS={
 
     "FLUX Schnell":
     "black-forest-labs/FLUX.1-schnell",
@@ -51,24 +54,45 @@ MODELS = {
     "Stable Diffusion 1.5":
     "runwayml/stable-diffusion-v1-5",
 
-    "SD 1.5 Alternative":
+    "SD1.5 Alternative":
     "stable-diffusion-v1-5/stable-diffusion-v1-5"
 }
 
 # ====================================================
-# OPTIONS
+# IMAGE EDIT MODELS
 # ====================================================
 
-mode = st.radio(
+IMAGE_EDIT_MODELS={
+
+    "FLUX Dev":
+    "black-forest-labs/FLUX.1-dev",
+
+    "FLUX Schnell":
+    "black-forest-labs/FLUX.1-schnell"
+}
+
+# ====================================================
+# MODE
+# ====================================================
+
+mode=st.radio(
+
     "Mode",
+
     [
         "Generate New Seat",
         "Modify Existing Seat"
     ]
 )
 
-vehicle = st.selectbox(
+# ====================================================
+# OPTIONS
+# ====================================================
+
+vehicle=st.selectbox(
+
     "Vehicle",
+
     [
         "Maruti Wagon R",
         "Grand Vitara",
@@ -78,8 +102,10 @@ vehicle = st.selectbox(
     ]
 )
 
-material = st.selectbox(
+material=st.selectbox(
+
     "Material",
+
     [
         "Leather",
         "Diamond Stitch",
@@ -88,8 +114,10 @@ material = st.selectbox(
     ]
 )
 
-color = st.selectbox(
+color=st.selectbox(
+
     "Seat Color",
+
     [
         "Black",
         "Brown",
@@ -99,21 +127,44 @@ color = st.selectbox(
     ]
 )
 
-model = st.selectbox(
-    "Model",
-    list(MODELS.keys())
-)
+# ====================================================
+# MODEL PICKER
+# ====================================================
+
+if mode=="Modify Existing Seat":
+
+    model=st.selectbox(
+
+        "Edit Model",
+
+        list(
+            IMAGE_EDIT_MODELS.keys()
+        )
+    )
+
+else:
+
+    model=st.selectbox(
+
+        "Generate Model",
+
+        list(
+            TEXT_MODELS.keys()
+        )
+    )
 
 # ====================================================
 # IMAGE UPLOAD
 # ====================================================
 
-uploaded = None
+uploaded=None
 
 if mode=="Modify Existing Seat":
 
-    uploaded = st.file_uploader(
+    uploaded=st.file_uploader(
+
         "Upload Seat Reference",
+
         type=[
             "jpg",
             "jpeg",
@@ -125,7 +176,6 @@ if mode=="Modify Existing Seat":
 
         st.image(
             uploaded,
-            caption="Reference Image",
             width=300
         )
 
@@ -133,8 +183,8 @@ if mode=="Modify Existing Seat":
 # PROMPTS
 # ====================================================
 
-prompt = f"""
-Professional automotive catalog image.
+prompt=f"""
+Professional automotive catalog photo.
 
 Generate EXACTLY TWO FRONT SEATS.
 
@@ -142,7 +192,7 @@ ONLY Tombstone seats.
 
 ONLY integrated fixed headrests.
 
-Headrest merged with backrest.
+Headrest merged into backrest.
 
 Vehicle:{vehicle}
 
@@ -154,11 +204,13 @@ Front view
 
 White background
 
-Premium product photography
+Identical seats
+
+Premium detailing
 """
 
-edit_prompt = f"""
-Keep seat geometry unchanged.
+edit_prompt=f"""
+Keep exact seat geometry unchanged.
 
 Modify ONLY:
 
@@ -171,34 +223,35 @@ Color:
 Vehicle:
 {vehicle}
 
-Change stitching pattern.
+Add premium stitching.
 
-Improve detailing.
+Improve seat detailing.
 
 Preserve:
 
-same shape
 same dimensions
 same headrest
 same proportions
 same seat structure
+same geometry
 
-DO NOT change geometry
+DO NOT redesign shape
 """
 
 negative_prompt="""
 metal rods,
 headrest poles,
-removable headrests,
 adjustable headrests,
+removable headrests,
 rear seats,
 dashboard,
 steering wheel,
 full car,
 armrests,
+cropped,
 duplicate,
-blurry,
-watermark
+watermark,
+blurry
 """
 
 # ====================================================
@@ -206,53 +259,69 @@ watermark
 # ====================================================
 
 if st.button(
+
     "Generate",
+
     use_container_width=True
 ):
 
     with st.spinner(
+
         "Generating..."
     ):
 
         try:
 
             client=InferenceClient(
+
                 provider="auto",
+
                 api_key=HF_TOKEN
             )
 
-            # ====================================
-            # IMAGE EDIT MODE
-            # ====================================
+            # =================================
+            # IMAGE EDIT
+            # =================================
 
             if (
+
                 mode=="Modify Existing Seat"
                 and
                 uploaded
             ):
 
-                image = client.image_to_image(
+                pil_image=Image.open(
+                    uploaded
+                )
 
-                    image=uploaded,
+                image=client.image_to_image(
+
+                    image=pil_image,
 
                     prompt=edit_prompt,
 
-                    model=MODELS[model],
+                    model=
+                    IMAGE_EDIT_MODELS[
+                        model
+                    ],
 
                     strength=0.25
                 )
 
-            # ====================================
-            # TEXT TO IMAGE MODE
-            # ====================================
+            # =================================
+            # TEXT GENERATION
+            # =================================
 
             else:
 
-                image = client.text_to_image(
+                image=client.text_to_image(
 
                     prompt,
 
-                    model=MODELS[model],
+                    model=
+                    TEXT_MODELS[
+                        model
+                    ],
 
                     negative_prompt=
                     negative_prompt,
@@ -271,13 +340,22 @@ if st.button(
                 "Done"
             )
 
+            with st.expander(
+                "Generation Info"
+            ):
+
+                st.write(
+                    "Mode:",
+                    mode
+                )
+
+                st.write(
+                    "Model:",
+                    model
+                )
+
         except Exception as e:
 
             st.error(
                 f"Error:\n{str(e)}"
-            )
-
-            st.write(
-                "Model:",
-                MODELS[model]
             )
