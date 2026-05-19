@@ -147,6 +147,7 @@ if st.button(
 
                 payload = {
                     "model":"google/gemini-2.5-flash-image",
+                    "max_tokens":512,
                     "messages":[
                         {
                             "role":"user",
