@@ -25,7 +25,8 @@ st.subheader("Fixed Tombstone Seat Generator")
 try:
     OPENROUTER_API_KEY = st.secrets["OPENROUTER_API_KEY"]
     HF_TOKEN = st.secrets["HF_TOKEN"]
-except:
+
+except Exception:
     st.error("Missing API keys in Streamlit secrets")
     st.stop()
 
@@ -74,51 +75,35 @@ generator = st.selectbox(
 )
 
 # ====================================================
-# PROMPT
+# SHORT PROMPT
 # ====================================================
 
 prompt = f"""
-Professional automotive catalog product photo.
+Automotive studio catalog image.
 
-STRICT RULES:
+Two front Tombstone seats only.
 
-ONLY tombstone seats
+Integrated fixed headrests only.
+Headrest merged with backrest.
 
-ONLY integrated fixed headrests
+Vehicle:{vehicle}
+Material:{material}
+Color:{color}
 
-Headrest must be merged into
-the backrest as one continuous body
+Front view
+Identical seats
+White background
 
-EXACTLY TWO FRONT SEATS:
-Driver + Co-driver
-
-Vehicle: {vehicle}
-Material: {material}
-Color: {color}
-
-Requirements:
-
-front view
-identical seats
-full seat visible
-white studio background
-premium automotive detailing
-
-
-STRICTLY FORBIDDEN:
-
-metal rods
-headrest poles
-adjustable headrest
-detachable headrest
-removable headrest
-dashboard
-seat belt
-rear seats
-armrest
-complete car
-steering wheel
-interior
+Do not generate:
+metal rods,
+headrest poles,
+adjustable headrests,
+removable headrests,
+rear seats,
+dashboard,
+steering wheel,
+full car,
+armrests
 """
 
 # ====================================================
@@ -134,11 +119,11 @@ if st.button(
 
         try:
 
-            # ============================================
+            # ======================================
             # GOOGLE NANO BANANA
-            # ============================================
+            # ======================================
 
-            if generator=="Google Nano Banana":
+            if generator == "Google Nano Banana":
 
                 headers = {
                     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -146,8 +131,14 @@ if st.button(
                 }
 
                 payload = {
+
                     "model":"google/gemini-2.5-flash-image",
-                    "max_tokens":512,
+
+                    # reduce credit use
+                    "max_tokens":256,
+
+                    "temperature":0.2,
+
                     "messages":[
                         {
                             "role":"user",
@@ -156,7 +147,7 @@ if st.button(
                     ]
                 }
 
-                response=requests.post(
+                response = requests.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers=headers,
                     json=payload,
@@ -165,16 +156,32 @@ if st.button(
 
                 data=response.json()
 
-                # Debug
-                with st.expander("API Response"):
+                # Handle API errors
+
+                if "error" in data:
+
+                    st.error(
+                        data["error"]["message"]
+                    )
+
+                    st.stop()
+
+                with st.expander(
+                    "API Response"
+                ):
                     st.json(data)
 
                 if "choices" not in data:
+
                     raise Exception(
-                        f"Unexpected response:\n{data}"
+                        "No choices in response"
                     )
 
-                content=data["choices"][0]["message"]["content"]
+                content = (
+                    data["choices"][0]
+                    ["message"]
+                    ["content"]
+                )
 
                 image_found=False
 
@@ -182,16 +189,22 @@ if st.button(
 
                     for item in content:
 
+                        # image URL response
+
                         if item.get("type")=="image_url":
 
                             image_url=(
                                 item["image_url"]["url"]
                             )
 
-                            img=requests.get(image_url)
+                            img=requests.get(
+                                image_url
+                            )
 
                             image=Image.open(
-                                BytesIO(img.content)
+                                BytesIO(
+                                    img.content
+                                )
                             )
 
                             st.image(
@@ -202,16 +215,22 @@ if st.button(
                             image_found=True
                             break
 
-                        elif item.get("type")=="image":
+                        # base64 response
 
-                            image_data=item["image"]
+                        elif item.get(
+                            "type"
+                        )=="image":
 
-                            image_bytes=base64.b64decode(
-                                image_data
+                            image_bytes=(
+                                base64.b64decode(
+                                    item["image"]
+                                )
                             )
 
                             image=Image.open(
-                                BytesIO(image_bytes)
+                                BytesIO(
+                                    image_bytes
+                                )
                             )
 
                             st.image(
@@ -223,25 +242,26 @@ if st.button(
                             break
 
                 if not image_found:
+
                     raise Exception(
                         "No image returned"
                     )
 
-            # ============================================
+            # ======================================
             # SDXL FALLBACK
-            # ============================================
+            # ======================================
 
             else:
 
-                client=InferenceClient(
+                client = InferenceClient(
                     model="stabilityai/stable-diffusion-xl-base-1.0",
                     token=HF_TOKEN
                 )
 
-                image=client.text_to_image(
+                image = client.text_to_image(
                     prompt,
                     guidance_scale=14,
-                    num_inference_steps=50
+                    num_inference_steps=40
                 )
 
                 st.image(
@@ -249,7 +269,9 @@ if st.button(
                     use_container_width=True
                 )
 
-            st.success("Generation complete")
+            st.success(
+                "Generation complete"
+            )
 
         except Exception as e:
 
