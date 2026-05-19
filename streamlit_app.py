@@ -1,9 +1,13 @@
 import streamlit as st
+import requests
+from io import BytesIO
+from PIL import Image
 from huggingface_hub import InferenceClient
+import base64
 
-# ====================================================
+# =====================================================
 # PAGE
-# ====================================================
+# =====================================================
 
 st.set_page_config(
     page_title="Pictator Pro 2026",
@@ -11,213 +15,196 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🚗 Pictator Pro 2026")
-st.subheader("Fixed Tombstone Seat Generator")
+st.title("🚗 Pictator Pro")
+st.subheader("Tombstone Seat Generator")
 
-# ====================================================
+# =====================================================
 # SECRETS
-# ====================================================
+# =====================================================
 
-try:
-    HF_TOKEN = st.secrets["HF_TOKEN"]
-except:
-    st.error(
-        "HF_TOKEN missing in Streamlit Secrets"
-    )
-    st.stop()
+OPENROUTER_API_KEY = st.secrets["OPENROUTER_API_KEY"]
+HF_TOKEN = st.secrets["HF_TOKEN"]
 
-# ====================================================
-# MODELS
-# ====================================================
+# =====================================================
+# OPTIONS
+# =====================================================
 
-MODELS = {
-    "FLUX Schnell":"black-forest-labs/FLUX.1-schnell",
-    "SDXL":"stabilityai/stable-diffusion-xl-base-1.0",
-    "SD 1.5":"runwayml/stable-diffusion-v1-5"
-}
+vehicle = st.selectbox(
+    "Vehicle",
+    [
+        "Maruti Wagon R",
+        "Grand Vitara",
+        "Swift",
+        "Baleno",
+        "Universal"
+    ]
+)
 
-# ====================================================
-# SIDEBAR
-# ====================================================
+material = st.selectbox(
+    "Material",
+    [
+        "Leather",
+        "Diamond Stitch",
+        "Fabric",
+        "Premium Leather"
+    ]
+)
 
-with st.sidebar:
+color = st.selectbox(
+    "Seat Color",
+    [
+        "Black",
+        "Brown",
+        "Beige",
+        "Grey",
+        "Red + Black"
+    ]
+)
 
-    st.header("Seat Settings")
+model = st.selectbox(
+    "Generator",
+    [
+        "Google Nano Banana",
+        "SDXL Fallback"
+    ]
+)
 
-    vehicle = st.selectbox(
-        "Vehicle",
-        [
-            "Maruti Wagon R",
-            "Grand Vitara",
-            "Swift",
-            "Baleno",
-            "Universal"
-        ]
-    )
+# =====================================================
+# PROMPT
+# =====================================================
 
-    material = st.selectbox(
-        "Material",
-        [
-            "Leather",
-            "Diamond Stitch",
-            "Premium Leather",
-            "Fabric"
-        ]
-    )
+prompt = f"""
+Professional automotive catalog image.
 
-    color = st.selectbox(
-        "Seat Color",
-        [
-            "Black",
-            "Brown",
-            "Beige",
-            "Grey",
-            "Red + Black"
-        ]
-    )
+STRICT RULES:
 
-    model_name = st.selectbox(
-        "Image Model",
-        list(MODELS.keys())
-    )
+ONLY Tombstone seats
 
-# ====================================================
-# GENERATION
-# ====================================================
+Integrated fixed headrests only
 
-if st.button(
-    "Generate Tombstone Seats",
-    use_container_width=True
-):
+Headrest and seat back must be
+one continuous structure
 
-    prompt = f"""
-Professional studio automotive catalog image.
+EXACTLY TWO seats:
+Driver + Co-driver
 
-STRICT REQUIREMENTS:
+Vehicle: {vehicle}
 
-ONLY tombstone seats
+Material: {material}
 
-Headrest must be fixed permanently.
+Color: {color}
 
-Headrest and backrest must be
-one single integrated body.
+Requirements:
 
-Show EXACTLY TWO front seats:
-Driver seat + Co-driver seat
-
-Vehicle:
-{vehicle}
-
-Material:
-{material}
-
-Color:
-{color}
-
-Seat requirements:
-
-identical pattern
-fully visible
-front view
-upright
-one-piece design
-fixed headrest
-high quality leather details
-white background
+Front view
+Identical seats
+White studio background
+Full seat visible
+Premium detailing
 
 
 STRICTLY FORBIDDEN:
 
-removable headrest
-detachable headrest
-headrest posts
 metal rods
-adjustable headrest
-seat belt
-armrest
-center console
-rear seats
+headrest poles
+adjustable headrests
+removable headrests
+detachable headrests
 dashboard
-steering wheel
+seat belt
+rear seats
+armrest
 full car
-collage
-extra objects
 """
 
-    negative_prompt = """
-metal rods,
-headrest supports,
-headrest poles,
-detachable headrest,
-adjustable headrest,
-removable headrest,
-seat belt,
-dashboard,
-steering wheel,
-armrest,
-car interior,
-vehicle,
-rear seat
-"""
+# =====================================================
+# GENERATE
+# =====================================================
 
-    try:
+if st.button(
+    "Generate",
+    use_container_width=True
+):
 
-        with st.spinner(
-            "Generating..."
-        ):
-
-            client = InferenceClient(
-                model=MODELS[model_name],
-                token=HF_TOKEN
-            )
-
-            image = client.text_to_image(
-                prompt,
-                negative_prompt=negative_prompt,
-                guidance_scale=13,
-                num_inference_steps=40
-            )
-
-            st.image(
-                image,
-                use_container_width=True
-            )
-
-            st.success(
-                "Generation complete"
-            )
-
-    except Exception:
-
-        st.warning(
-            "Primary model unavailable. Switching to SDXL..."
-        )
+    with st.spinner("Generating..."):
 
         try:
 
-            client = InferenceClient(
-                model="stabilityai/stable-diffusion-xl-base-1.0",
-                token=HF_TOKEN
-            )
+            # ========================================
+            # GOOGLE NANO BANANA
+            # ========================================
 
-            image = client.text_to_image(
-                prompt,
-                negative_prompt=negative_prompt,
-                guidance_scale=13,
-                num_inference_steps=40
-            )
+            if model=="Google Nano Banana":
 
-            st.image(
-                image,
-                use_container_width=True
-            )
+                url = "https://openrouter.ai/api/v1/chat/completions"
 
-            st.success(
-                "Generated using SDXL fallback"
-            )
+                headers = {
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type":"application/json"
+                }
+
+                payload = {
+                    "model":"google/gemini-2.5-flash-image-preview",
+                    "messages":[
+                        {
+                            "role":"user",
+                            "content":prompt
+                        }
+                    ]
+                }
+
+                response=requests.post(
+                    url,
+                    headers=headers,
+                    json=payload
+                )
+
+                data=response.json()
+
+                image_data=(
+                    data["choices"][0]
+                    ["message"]
+                    ["images"][0]
+                    ["image_url"]
+                )
+
+                img=requests.get(
+                    image_data
+                )
+
+                image=Image.open(
+                    BytesIO(img.content)
+                )
+
+                st.image(
+                    image,
+                    use_container_width=True
+                )
+
+            # ========================================
+            # SDXL FALLBACK
+            # ========================================
+
+            else:
+
+                client=InferenceClient(
+                    model="stabilityai/stable-diffusion-xl-base-1.0",
+                    token=HF_TOKEN
+                )
+
+                image=client.text_to_image(
+                    prompt,
+                    guidance_scale=14,
+                    num_inference_steps=50
+                )
+
+                st.image(
+                    image,
+                    use_container_width=True
+                )
 
         except Exception as e:
 
             st.error(
-                f"Generation failed:\n{e}"
+                f"Error: {e}"
             )
