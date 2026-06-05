@@ -1,4 +1,10 @@
 streamlit
 requests
 huggingface_hub
+opencv-python-headless
+accelerate
+huggingface_hub
 Pillow
+torch
+numpy
+diffusers
